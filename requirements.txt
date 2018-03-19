@@ -1,0 +1,17 @@
+certifi==2018.1.18
+chardet==3.0.4
+DateTime==4.2
+demjson==2.2.4
+get==0.0.39
+idna==2.6
+pinance==1.0
+post==0.0.26
+public==0.0.65
+pytz==2018.3
+query-string==0.0.28
+request==0.0.26
+requests==2.18.4
+simplejson==3.13.2
+urllib3==1.22
+urlopen==1.0.0
+zope.interface==4.4.3
