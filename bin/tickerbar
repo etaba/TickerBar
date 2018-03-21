@@ -1,0 +1,25 @@
+#!/usr/bin/env python
+
+import sys
+
+from tickerbar import *
+
+if sys.argv[1] == "ticker":
+    ticker = sys.argv[2]
+    change = dailyPercent(ticker)
+    statement = "{}{}{}%".format(ticker,"+" if change>0 else "",str(change))
+    print(statement)
+
+elif sys.argv[1] == "daily":
+    try:
+        stockAssets = liveStockAssets()
+    except Exception:
+        stockAssets = cachedStockAssets()
+    if stockAssets.dayChange < 0:
+        print("Total-$"+str(-1 * stockAssets.dayChange))
+    else:
+        print("Total+$"+str(stockAssets.dayChange))
+
+elif sys.argv[1] == "btt":
+    outputForBTT()
+

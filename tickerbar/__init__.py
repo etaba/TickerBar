@@ -1,60 +1,80 @@
-import json, sys, collections, sqlite3, os
+#!/usr/local/bin/python
+import json, collections, os, sys
 from pinance import Pinance
 
 from config import *
 from datetime import datetime, timedelta
 from multiprocessing.dummy import Pool
 
-DB_FILE = "stocks.sql"
+JSON_CACHE = "../quotes.json"
 
-def insertQuote(ticker,currVal,openPrice):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
+def cacheQuote(ticker,quote):
     try:
-        qry = 'UPDATE stock SET insertDate = DATE("now", "localtime"), currVal = {}, openPrice = {} WHERE ticker="{}"'.format(ticker, currVal, openPrice)
-        c.execute(qry)
+        cachedQuotes = json.load(open(JSON_CACHE,'r'))
     except Exception:
-        qry = 'INSERT INTO stock (ticker, insertDate, currVal, openPrice) VALUES ("{}",DATE("now", "localtime"),{},{})'.format(ticker, currVal, openPrice)
-        c.execute(qry)
-    conn.commit()
-    conn.close()
+        cachedQuotes = {}
+
+    if ticker in cachedQuotes.keys():
+        for (k,v) in quote.items():
+            cachedQuotes[ticker][k] = v
+    else:
+        cachedQuotes[ticker] = quote
+    jsonCache = open(JSON_CACHE,'w+')
+    jsonCache.write(json.dumps(cachedQuotes))
+    jsonCache.close()
+
 
 def cachedQuote(ticker):
-    conn = sqlite3.connect(DB_FILE)
-    c = conn.cursor()
-    qry = 'SELECT * FROM stock WHERE ticker = "{}"'.format(ticker)
-    c.execute(qry)
-    stocks = c.fetchall()
-    price = collections.namedtuple('price','ticker insertDate currVal openPrice')
-    return price(*stocks[0])
+    with open(JSON_CACHE) as jsonCache:
+        cachedQuotes = collections.defaultdict(lambda: {"currVal":0,"change":0},json.load(jsonCache))
+        return cachedQuotes[ticker]
+
+def cachedStockAssets():
+    totalChange = 0
+    totalVal = 0
+    for (symbol,quantity) in STOCKS.items():
+        quote = cachedQuote(symbol)
+        totalChange += quote['change'] * quantity
+        totalVal += quote['currVal'] * quantity
+    Result = collections.namedtuple("Result",["balance","dayChange"])
+    return Result(int(totalVal),int(totalChange))
 
 def dailyAsset(ticker):
-    stock = Pinance(ticker)
-    stock.get_quotes()
-    if stock.quotes_data['marketState'] == 'CLOSED':
+    try:
+        stock = Pinance(ticker)
+        stock.get_quotes()
         if 'postMarketPrice' in stock.quotes_data.keys():
             currValue = float(stock.quotes_data['postMarketPrice'])*STOCKS[ticker]
+            dayChange = float(stock.quotes_data['regularMarketChange'] + stock.quotes_data['postMarketChange'])*STOCKS[ticker]
         else:
             currValue = float(stock.quotes_data['regularMarketPrice'])*STOCKS[ticker]                
-        dayChange = stock.quotes_data['regularMarketChange']*STOCKS[ticker]
-    else:
-        currValue = float(stock.quotes_data['price'])*STOCKS[ticker]
-        dayChange = float(stock.quotes_data['change'])*STOCKS[ticker]
+            dayChange = stock.quotes_data['regularMarketChange']*STOCKS[ticker]
+        cacheQuote(ticker,{'currVal':currValue,'change':dayChange})
+    except Exception:
+        quote = cachedQuote(ticker)
+        currValue = quote['currValue']*STOCKS[ticker]
+        dayChange = quote['change']*STOCKS[ticker]
     return (currValue,dayChange)
 
 def dailyPercent(ticker):
-    stock = Pinance(ticker)
-    stock.get_quotes()
-    if stock.quotes_data['marketState'] == 'CLOSED':
+    try:
+        stock = Pinance(ticker)
+        stock.get_quotes()
         change = stock.quotes_data['regularMarketChangePercent']
-    else:
-        change = float(stock.quotes_data['ChangePercent'])
+        cacheQuote(ticker,{'change':change})
+    except Exception:
+        change = cachedQuote(ticker)['change']
     return round(change,2)
 
 def currentPrice(ticker):
-    stock = Pinance(ticker)
-    stock.get_quotes()
-    return float(stock.quotes_data['LastTradePrice'])
+    try:
+        stock = Pinance(ticker)
+        stock.get_quotes()
+        price = float(stock.quotes_data['LastTradePrice'])
+        cacheQuote(ticker,{'currVal':price})
+    except Exception:
+        price = cachedQuote(ticker)['currVal']
+    return price
 
 def liveStockAssets():
     threadPool = Pool(5)
@@ -65,13 +85,6 @@ def liveStockAssets():
     totalDayChange = int(sum([dt[1] for dt in dailyTotals]))
     Result = collections.namedtuple("Result",["balance","dayChange"])
     return Result(balance,totalDayChange)
-
-def cachedStockAssets():
-    prices = [cachedQuote(ticker) for ticker in STOCKS.keys()]
-    totalOpen = int(sum([price.openPrice*STOCKS[price.ticker] for price in prices]))
-    totalCurrent = int(sum([price.currVal*STOCKS[price.ticker] for price in prices]))
-    Result = collections.namedtuple("Result",["balance","dayChange"])
-    return Result(totalCurrent,totalCurrent - totalOpen)
 
 def lastOpen():
     today = datetime.today()
@@ -101,7 +114,7 @@ def outputForBTT():
             "BTTTouchBarFreeSpaceAfterButton" : "0.000000",
             "BTTTouchBarButtonColor" : "63.000000, 249.000000, 105.000000, 255.000000",
             "BTTTouchBarAlwaysShowButton" : "1",
-            "BTTTouchBarAppleScriptString" : "cd {}; source ~/.virtualenvs/TickerBar/bin/activate; python tickerBar.py daily".format(os.path.abspath('.')),
+            "BTTTouchBarAppleScriptString" : "cd {}/tickerbar; ./__init__.py daily".format(os.path.abspath('.')),
             "BTTTouchBarColorRegex" : "[-]+",
             "BTTTouchBarAlternateBackgroundColor" : "255.000000, 16.000000, 30.000000, 255.000000",
             "BTTTouchBarScriptUpdateInterval" : 100
@@ -127,7 +140,7 @@ def outputForBTT():
                 "BTTTouchBarFreeSpaceAfterButton" : "5.000000",
                 "BTTTouchBarButtonColor" : "63.000000, 249.000000, 105.000000, 255.000000",
                 "BTTTouchBarAlwaysShowButton" : "0",
-                "BTTTouchBarAppleScriptString" : "cd {}; source ~/.virtualenvs/TickerBar/bin/activate; python tickerBar.py ticker {}".format(os.path.abspath('.'),ticker),
+                "BTTTouchBarAppleScriptString":"cd {}/tickerbar; ./__init__.py ticker {}".format(os.path.abspath('.'),ticker),
                 "BTTTouchBarColorRegex" : "[-]+",
                 "BTTTouchBarAlternateBackgroundColor" : "255.000000, 16.000000, 30.000000, 255.000000",
                 "BTTTouchBarScriptUpdateInterval" : 5.00726,
@@ -156,30 +169,10 @@ def outputForBTT():
     bttFile.write(json.dumps(btt))
     bttFile.close()
 
-
-
 if __name__ == "__main__":
-
-    if sys.argv[1] == "init":
-        initDb()
-
-    elif sys.argv[1] == "daily":
-        try:
-            stockAssets = liveStockAssets()
-        except Exception:
-            stockAssets = cachedStockAssets()
-        if stockAssets.dayChange < 0:
-            print("-$"+str(-1 * stockAssets.dayChange))
-        else:
-            print("$"+str(stockAssets.dayChange))
-
-    elif sys.argv[1] == "ticker":
+    if sys.argv[1] == "ticker":
         ticker = sys.argv[2]
-        try:
-            change = dailyPercent(ticker)
-        except Exception:
-            cachedData = cachedQuote(ticker)
-            change = round(100*(cachedData[2] - cachedData[3])/cachedData[3],2)
+        change = dailyPercent(ticker)
         statement = "{}{}{}%".format(ticker,"+" if change>0 else "",str(change))
         print(statement)
 
@@ -192,8 +185,4 @@ if __name__ == "__main__":
             print("Total-$"+str(-1 * stockAssets.dayChange))
         else:
             print("Total+$"+str(stockAssets.dayChange))
-
-
-    elif sys.argv[1] == "btt":
-        outputForBTT()
 
