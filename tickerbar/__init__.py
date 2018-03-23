@@ -6,8 +6,8 @@ from datetime import datetime, timedelta
 from multiprocessing.dummy import Pool, Lock
 
 fullPath = os.path.dirname(os.path.realpath(__file__))
-JSON_CACHE = fullPath[:fullPath.find("/tickerbar")]+"/quotes.json"
-CONFIG = fullPath[:fullPath.find("/tickerbar")]+"/config.json"
+JSON_CACHE = fullPath+"/quotes.json"
+CONFIG = fullPath+"/config.json"
 STOCKS = json.load(open(CONFIG,'r'))
 
 def addPosition(symbol, quantity):

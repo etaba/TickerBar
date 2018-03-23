@@ -1,0 +1,2 @@
+include tickerbar/quotes.json
+include tickerbar/config.json
