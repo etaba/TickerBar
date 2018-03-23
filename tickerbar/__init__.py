@@ -43,22 +43,26 @@ def cacheQuote(symbol,quote,lock=None):
     try:
         if lock !=None:
             lock.acquire()
-        cachedQuotes = json.load(open(JSON_CACHE,'r'))
-    #except Exception:
-    #    with open(JSON_CACHE,"w+") as f:
-    #        f.write("{}")
-    #    cachedQuotes = {}
+        try:
+            cachedQuotes = json.load(open(JSON_CACHE,'r'))
+        #except Exception:
+        #    with open(JSON_CACHE,"w+") as f:
+        #        f.write("{}")
+        #    cachedQuotes = {}
 
-        if symbol in cachedQuotes.keys():
-            for (k,v) in quote.items():
-                cachedQuotes[symbol][k] = v
-        else:
-            cachedQuotes[symbol] = quote
-        jsonCache = open(JSON_CACHE,'w+')
-        jsonCache.write(json.dumps(cachedQuotes))
-        jsonCache.close()
-        if lock !=None:
-            lock.release()
+            if symbol in cachedQuotes.keys():
+                for (k,v) in quote.items():
+                    cachedQuotes[symbol][k] = v
+            else:
+                cachedQuotes[symbol] = quote
+            jsonCache = open(JSON_CACHE,'w+')
+            jsonCache.write(json.dumps(cachedQuotes))
+            jsonCache.close()
+            if lock !=None:
+                lock.release()
+        except Exception:
+            if lock !=None:
+                lock.release()
     except Exception as e:
         pass
 
