@@ -4,22 +4,29 @@ import sys
 
 from tickerbar import *
 
-if sys.argv[1] == "ticker":
-    ticker = sys.argv[2]
-    change = dailyPercent(ticker)
-    statement = "{}{}{}%".format(ticker,"+" if change>0 else "",str(change))
-    print(statement)
+if sys.argv[1] == "add":
+    assets = zip(sys.argv[2::2],sys.argv[3::2])
+    for asset in assets:
+        addPosition(*asset)
+
+elif sys.argv[1] == "remove":
+    if sys.argv[2] == "all":
+        clearConfig()
+    else:
+        print(sys.argv[2])
+        removePosition(sys.argv[2])
+
+elif sys.argv[1] == "ticker":
+    symbol = sys.argv[2]
+    print(percentPrintout(symbol))
 
 elif sys.argv[1] == "daily":
-    try:
-        stockAssets = liveStockAssets()
-    except Exception:
-        stockAssets = cachedStockAssets()
-    if stockAssets.dayChange < 0:
-        print("Total-$"+str(-1 * stockAssets.dayChange))
-    else:
-        print("Total+$"+str(stockAssets.dayChange))
+    print(dailyGainPrintout())
+
+elif sys.argv[1] == "test":
+    print(cachedTotal())
 
 elif sys.argv[1] == "btt":
     outputForBTT()
+
 

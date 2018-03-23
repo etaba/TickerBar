@@ -1,90 +1,122 @@
 #!/usr/local/bin/python
 import json, collections, os, sys
 from pinance import Pinance
-
-from config import *
+from functools import partial
 from datetime import datetime, timedelta
-from multiprocessing.dummy import Pool
+from multiprocessing.dummy import Pool, Lock
 
-JSON_CACHE = "../quotes.json"
+fullPath = os.path.dirname(os.path.realpath(__file__))
+JSON_CACHE = fullPath[:fullPath.find("/tickerbar")]+"/quotes.json"
+CONFIG = fullPath[:fullPath.find("/tickerbar")]+"/config.json"
+STOCKS = json.load(open(CONFIG,'r'))
 
-def cacheQuote(ticker,quote):
+def addPosition(symbol, quantity):
     try:
+        with open(CONFIG,'r') as config:
+            positions = json.load(config)
+        positions[symbol] = int(quantity)
+        with open(CONFIG,'w') as config:
+            json.dump(positions,config)
+    except Exception as e:
+        print("Error adding position: "+type(e))
+
+def removePosition(symbol):
+    try: 
+        with open(CONFIG,'r') as config:
+            positions = json.load(config)
+        positions.pop(symbol)
+        with open(CONFIG,'w') as config:
+            json.dump(positions,config)
+    except Exception as e:
+        print("Error removing position: "+str(type(e)))
+
+def clearConfig():
+    with open(CONFIG,'w') as config:
+        config.write('{}')
+
+def printPositions():
+    with open(CONFIG,'r') as config:
+        positions = json.load(config)
+        [print("{} : {}".format(symbol,quantity)) for (symbol,quantity) in positions.items()]
+
+def cacheQuote(symbol,quote,lock=None):
+    try:
+        if lock !=None:
+            lock.acquire()
         cachedQuotes = json.load(open(JSON_CACHE,'r'))
-    except Exception:
-        cachedQuotes = {}
+    #except Exception:
+    #    with open(JSON_CACHE,"w+") as f:
+    #        f.write("{}")
+    #    cachedQuotes = {}
 
-    if ticker in cachedQuotes.keys():
-        for (k,v) in quote.items():
-            cachedQuotes[ticker][k] = v
-    else:
-        cachedQuotes[ticker] = quote
-    jsonCache = open(JSON_CACHE,'w+')
-    jsonCache.write(json.dumps(cachedQuotes))
-    jsonCache.close()
-
-
-def cachedQuote(ticker):
-    with open(JSON_CACHE) as jsonCache:
-        cachedQuotes = collections.defaultdict(lambda: {"currVal":0,"change":0},json.load(jsonCache))
-        return cachedQuotes[ticker]
-
-def cachedStockAssets():
-    totalChange = 0
-    totalVal = 0
-    for (symbol,quantity) in STOCKS.items():
-        quote = cachedQuote(symbol)
-        totalChange += quote['change'] * quantity
-        totalVal += quote['currVal'] * quantity
-    Result = collections.namedtuple("Result",["balance","dayChange"])
-    return Result(int(totalVal),int(totalChange))
-
-def dailyAsset(ticker):
-    try:
-        stock = Pinance(ticker)
-        stock.get_quotes()
-        if 'postMarketPrice' in stock.quotes_data.keys():
-            currValue = float(stock.quotes_data['postMarketPrice'])*STOCKS[ticker]
-            dayChange = float(stock.quotes_data['regularMarketChange'] + stock.quotes_data['postMarketChange'])*STOCKS[ticker]
+        if symbol in cachedQuotes.keys():
+            for (k,v) in quote.items():
+                cachedQuotes[symbol][k] = v
         else:
-            currValue = float(stock.quotes_data['regularMarketPrice'])*STOCKS[ticker]                
-            dayChange = stock.quotes_data['regularMarketChange']*STOCKS[ticker]
-        cacheQuote(ticker,{'currVal':currValue,'change':dayChange})
-    except Exception:
-        quote = cachedQuote(ticker)
-        currValue = quote['currValue']*STOCKS[ticker]
-        dayChange = quote['change']*STOCKS[ticker]
+            cachedQuotes[symbol] = quote
+        jsonCache = open(JSON_CACHE,'w+')
+        jsonCache.write(json.dumps(cachedQuotes))
+        jsonCache.close()
+        if lock !=None:
+            lock.release()
+    except Exception as e:
+        pass
+
+def liveQuote(symbol, lock=None):
+    stock = Pinance(symbol)
+    stock.get_quotes()
+    if 'postMarketPrice' in stock.quotes_data.keys():
+        currValue = float(stock.quotes_data['postMarketPrice'])*STOCKS[symbol]
+        dayChange = float(stock.quotes_data['regularMarketChange'] + stock.quotes_data['postMarketChange'])*STOCKS[symbol]
+    else:
+        currValue = float(stock.quotes_data['regularMarketPrice'])*STOCKS[symbol]                
+        dayChange = stock.quotes_data['regularMarketChange']*STOCKS[symbol]
+    cacheQuote(symbol,
+                {'lastPrice':stock.quotes_data['regularMarketPrice'],
+                'change':stock.quotes_data['regularMarketChange'],
+                'percentChange':stock.quotes_data['regularMarketChangePercent']},
+                lock)
     return (currValue,dayChange)
 
-def dailyPercent(ticker):
+def cachedQuote(symbol):
     try:
-        stock = Pinance(ticker)
-        stock.get_quotes()
-        change = stock.quotes_data['regularMarketChangePercent']
-        cacheQuote(ticker,{'change':change})
-    except Exception:
-        change = cachedQuote(ticker)['change']
-    return round(change,2)
+        with open(JSON_CACHE) as jsonCache:
+            cachedQuotes = collections.defaultdict(lambda: {"lastPrice":0,"change":0},json.load(jsonCache))
+            return cachedQuotes[symbol]
+    except Exception as e:
+        return {"lastPrice":0,"change":0,"percentChange":0}
 
-def currentPrice(ticker):
-    try:
-        stock = Pinance(ticker)
-        stock.get_quotes()
-        price = float(stock.quotes_data['LastTradePrice'])
-        cacheQuote(ticker,{'currVal':price})
-    except Exception:
-        price = cachedQuote(ticker)['currVal']
-    return price
+def liveDailyPercent(symbol):
+    stock = Pinance(symbol)
+    stock.get_quotes()
+    percentChange = stock.quotes_data['regularMarketChangePercent']
+    cacheQuote(symbol,{'percentChange':percentChange,
+                        'lastPrice':stock.quotes_data['regularMarketPrice'],
+                        'change':stock.quotes_data['regularMarketChange']})
+    return percentChange
 
-def liveStockAssets():
+def liveTotal():
+    cacheLock = Lock()
+    liveQuoteAtomic = partial(liveQuote,lock=cacheLock)
     threadPool = Pool(5)
-    dailyTotals = threadPool.map(dailyAsset,STOCKS.keys())
+    dailyTotals = threadPool.map(liveQuoteAtomic,STOCKS.keys())
     threadPool.close()
     threadPool.join()
     balance = int(sum([dt[0] for dt in dailyTotals]))
     totalDayChange = int(sum([dt[1] for dt in dailyTotals]))
     Result = collections.namedtuple("Result",["balance","dayChange"])
     return Result(balance,totalDayChange)
+
+def cachedTotal():
+    totalChange = 0
+    totalVal = 0
+    for (symbol,quantity) in STOCKS.items():
+        quote = cachedQuote(symbol)
+        totalChange += quote['change'] * quantity
+        totalVal += quote['lastPrice'] * quantity
+        #print("{}: {} ({})".format(symbol,totalVal,totalChange))
+    Result = collections.namedtuple("Result",["balance","dayChange"])
+    return Result(int(totalVal),int(totalChange))
 
 def lastOpen():
     today = datetime.today()
@@ -95,6 +127,24 @@ def lastOpen():
         lastOpen = today
     return lastOpen.strftime('%Y-%m-%d')
 
+def percentPrintout(symbol):
+    try:
+        percentChange = liveDailyPercent(symbol)
+    except Exception:
+        percentChange = cachedQuote(symbol)['percentChange']
+    percentChange = round(percentChange,2)
+    return "{}{}{}%".format(symbol,"+" if percentChange>0 else "",str(percentChange))
+
+def dailyGainPrintout():
+    try:
+        total = liveTotal()
+    except Exception:
+        total = cachedTotal()
+    if total.dayChange < 0:
+        return "Total-$"+str(-1 * total.dayChange)
+    else:
+        return "Total+$"+str(total.dayChange)
+
 def outputForBTT():
     widgets = [{
         "BTTWidgetName" : "Total",
@@ -103,34 +153,34 @@ def outputForBTT():
         "BTTTriggerClass" : "BTTTriggerTypeTouchBar",
         "BTTPredefinedActionType" : -1,
         "BTTPredefinedActionName" : "No Action",
-        "BTTShellScriptWidgetGestureConfig" : "/bin/bash:::-c",
-        "BTTAdditionalConfiguration" : "/bin/bash:::-c",
+        "BTTShellScriptWidgetGestureConfig" : "{}:::-c".format(sys.executable),
+        "BTTAdditionalConfiguration" : "{}:::-c".format(sys.executable),
         "BTTEnabled" : 1,
         "BTTOrder" : 5,
         "BTTTriggerConfig" : {
             "BTTTouchBarItemIconHeight" : 22,
             "BTTTouchBarItemIconWidth" : 22,
             "BTTTouchBarItemPadding" : 0,
-            "BTTTouchBarFreeSpaceAfterButton" : "0.000000",
+            "BTTTouchBarFreeSpaceAfterButton" : "5.000000",
             "BTTTouchBarButtonColor" : "63.000000, 249.000000, 105.000000, 255.000000",
             "BTTTouchBarAlwaysShowButton" : "1",
-            "BTTTouchBarAppleScriptString" : "cd {}/tickerbar; ./__init__.py daily".format(os.path.abspath('.')),
+            "BTTTouchBarAppleScriptString" :    "from symbolbar import *\nprint(dailyGainPrintout())",
             "BTTTouchBarColorRegex" : "[-]+",
             "BTTTouchBarAlternateBackgroundColor" : "255.000000, 16.000000, 30.000000, 255.000000",
             "BTTTouchBarScriptUpdateInterval" : 100
         }
     }]
-    for (ticker,_) in STOCKS.items():
+    for (symbol,_) in STOCKS.items():
         widgets.append(
             {
-              "BTTWidgetName" : ticker,
+              "BTTWidgetName" : symbol,
               "BTTTriggerType" : 642,
               "BTTTriggerTypeDescription" : "Shell Script / Task Widget",
               "BTTTriggerClass" : "BTTTriggerTypeTouchBar",
               "BTTPredefinedActionType" : -1,
               "BTTPredefinedActionName" : "No Action",
-              "BTTShellScriptWidgetGestureConfig" : "/bin/bash:::-c",
-              "BTTAdditionalConfiguration" : "/bin/bash:::-c",
+              "BTTShellScriptWidgetGestureConfig" : "{}:::-c".format(sys.executable),
+              "BTTAdditionalConfiguration" : "{}:::-c".format(sys.executable),
               "BTTEnabled" : 1,
               "BTTOrder" : 0,
               "BTTTriggerConfig" : {
@@ -140,10 +190,10 @@ def outputForBTT():
                 "BTTTouchBarFreeSpaceAfterButton" : "5.000000",
                 "BTTTouchBarButtonColor" : "63.000000, 249.000000, 105.000000, 255.000000",
                 "BTTTouchBarAlwaysShowButton" : "0",
-                "BTTTouchBarAppleScriptString":"cd {}/tickerbar; ./__init__.py ticker {}".format(os.path.abspath('.'),ticker),
+                "BTTTouchBarAppleScriptString":"from symbolbar import *\nprint(percentPrintout('{}'))".format(symbol),
                 "BTTTouchBarColorRegex" : "[-]+",
                 "BTTTouchBarAlternateBackgroundColor" : "255.000000, 16.000000, 30.000000, 255.000000",
-                "BTTTouchBarScriptUpdateInterval" : 5.00726,
+                "BTTTouchBarScriptUpdateInterval" : 5,
                 "BTTHUDText" : "title",
                 "BTTHUDDetailText" : "text"
               }
@@ -168,21 +218,4 @@ def outputForBTT():
     bttFile = open("bttStockConfig.json","w+")
     bttFile.write(json.dumps(btt))
     bttFile.close()
-
-if __name__ == "__main__":
-    if sys.argv[1] == "ticker":
-        ticker = sys.argv[2]
-        change = dailyPercent(ticker)
-        statement = "{}{}{}%".format(ticker,"+" if change>0 else "",str(change))
-        print(statement)
-
-    elif sys.argv[1] == "daily":
-        try:
-            stockAssets = liveStockAssets()
-        except Exception:
-            stockAssets = cachedStockAssets()
-        if stockAssets.dayChange < 0:
-            print("Total-$"+str(-1 * stockAssets.dayChange))
-        else:
-            print("Total+$"+str(stockAssets.dayChange))
 
