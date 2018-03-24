@@ -19,9 +19,9 @@ BetterTouchTool plugin which adds a button to your macbook touch bar to display 
     * Remove all positions with `tickerbar remove all`
     * To change a position just add it again: `tickerbar add <symbol> <new_quantity>`, this will override the existing data for that symbol.
 
-3) Generate BetterTouchTool settings: `tickerbar btt`. This will create a JSON settings file in the directory you run the command from.
+3) Generate BetterTouchTool settings: `tickerbar btt`. This will create a JSON settings file named `bttStockConfig.json` in the directory you run the command from.
 
-4) Import settings to BetterTouchTool
+4) Import the `bttStockConfig.json` settings file to BetterTouchTool
 ![alt text](images/btt.png)
 
 
