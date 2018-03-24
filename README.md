@@ -1,7 +1,7 @@
 # TickerBar
-BetterTouchTool plugin which adds a button to your macbook touch bar to display live stock data.
-![alt text](images/tickerbar1.png)
-![alt text](images/tickerbar2.png)
+BetterTouchTool plugin which adds a button to your macbook touch bar to display live stock data:
+![alt text](images/tickerbar1.jpg)
+![alt text](images/tickerbar2.jpg)
 
 ## Requirements
 1) Macbook with Touch Bar.
@@ -10,14 +10,13 @@ BetterTouchTool plugin which adds a button to your macbook touch bar to display 
 
 
 ## Installation and Usage
-
 1) Install tickerbar: `pip install tickerbar`.
 
 2) Add the stock positions you'd like to monitor
-..*`tickerbar add <symbol_1> <number_of_shares_1> <symbol_2> <number_of_shares_2> ...`
-..*Remove positions with `tickerbar remove <symbol>`
-..*Remove all positions with `tickerbar remove all`
-..*To change a position just add it again: `tickerbar add <symbol> <new_quantity>`, this will override the existing data for that symbol.
+  +`tickerbar add <symbol_1> <number_of_shares_1> <symbol_2> <number_of_shares_2> ...`
+  +Remove positions with `tickerbar remove <symbol>`
+  +Remove all positions with `tickerbar remove all`
+  +To change a position just add it again: `tickerbar add <symbol> <new_quantity>`, this will override the existing data for that symbol.
 
 3) Generate BetterTouchTool settings: `tickerbar btt`. This will create a JSON settings file in the directory you run the command from.
 
