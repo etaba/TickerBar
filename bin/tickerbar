@@ -9,7 +9,7 @@ if sys.argv[1] == "add":
 
 elif sys.argv[1] == "remove":
     if sys.argv[2] == "all":
-        clearConfig()
+        clearData()
     else:
         print(sys.argv[2])
         removePosition(sys.argv[2])
@@ -21,7 +21,7 @@ elif sys.argv[1] == "ticker":
 elif sys.argv[1] == "daily":
     print(dailyGainPrintout())
 
-elif sys.argv[1] == "test":
+elif sys.argv[1] == "testCache":
     print(cachedTotal())
 
 elif sys.argv[1] == "btt":

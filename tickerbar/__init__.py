@@ -1,5 +1,5 @@
 #!/usr/local/bin/python
-import json, collections, os, sys
+import json, collections, os, sys, fcntl, time
 from pinance import Pinance
 from functools import partial
 from datetime import datetime, timedelta
@@ -30,41 +30,44 @@ def removePosition(symbol):
     except Exception as e:
         print("Error removing position: "+str(type(e)))
 
-def clearConfig():
+def clearData():
     with open(CONFIG,'w') as config:
         config.write('{}')
+    with open(JSON_CACHE,'w') as cache:
+        cache.write('{}')
+
 
 def printPositions():
     with open(CONFIG,'r') as config:
         positions = json.load(config)
         [print("{} : {}".format(symbol,quantity)) for (symbol,quantity) in positions.items()]
 
-def cacheQuote(symbol,quote,lock=None):
-    try:
-        if lock !=None:
-            lock.acquire()
+def cacheQuote(symbol,quote):
+    cache = open(JSON_CACHE,'r+')
+    #acquire file lock
+    while True:
         try:
-            cachedQuotes = json.load(open(JSON_CACHE,'r'))
-        #except Exception:
-        #    with open(JSON_CACHE,"w+") as f:
-        #        f.write("{}")
-        #    cachedQuotes = {}
-
-            if symbol in cachedQuotes.keys():
-                for (k,v) in quote.items():
-                    cachedQuotes[symbol][k] = v
+            fcntl.flock(cache, fcntl.LOCK_EX)
+            break
+        except IOError as e:
+            # raise on unrelated IOErrors
+            if e.errno != fcntl.BlockingIOError:
+                raise
             else:
-                cachedQuotes[symbol] = quote
-            jsonCache = open(JSON_CACHE,'w+')
-            jsonCache.write(json.dumps(cachedQuotes))
-            jsonCache.close()
-            if lock !=None:
-                lock.release()
-        except Exception:
-            if lock !=None:
-                lock.release()
-    except Exception as e:
-        pass
+                time.sleep(0.1)
+    #update data
+    cachedQuotes = json.load(cache)
+    if symbol in cachedQuotes.keys():
+        for (k,v) in quote.items():
+            cachedQuotes[symbol][k] = v
+    else:
+        cachedQuotes[symbol] = quote
+    #write to file
+    cache.seek(0)
+    json.dump(cachedQuotes,cache)
+    cache.truncate()
+    fcntl.flock(cache,fcntl.LOCK_UN)
+    cache.close()
 
 def liveQuote(symbol, lock=None):
     stock = Pinance(symbol)
