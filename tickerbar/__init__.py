@@ -5,6 +5,7 @@ from functools import partial
 from datetime import datetime, timedelta
 from multiprocessing.dummy import Pool, Lock
 
+
 fullPath = os.path.dirname(os.path.realpath(__file__))
 JSON_CACHE = fullPath+"/quotes.json"
 CONFIG = fullPath+"/config.json"
@@ -40,7 +41,8 @@ def clearData():
 def printPositions():
     with open(CONFIG,'r') as config:
         positions = json.load(config)
-        [print("{} : {}".format(symbol,quantity)) for (symbol,quantity) in positions.items()]
+        for (symbol,quantity) in positions.items():
+            print(f"{symbol: <6}: {quantity}")
 
 def cacheQuote(symbol,quote):
     cache = open(JSON_CACHE,'r+')
@@ -192,16 +194,22 @@ def outputForBTT():
               "BTTPredefinedActionName" : "No Action",
               "BTTShellScriptWidgetGestureConfig" : "{}:::-c".format(sys.executable),
               "BTTAdditionalConfiguration" : "{}:::-c".format(sys.executable),
+              "BTTEnabled2" : 1,
               "BTTEnabled" : 1,
               "BTTOrder" : 0,
               "BTTTriggerConfig" : {
+                "BTTTouchBarButtonName" : symbol,
+                "BTTScriptType" : 0,
+                "BTTTouchBarAppleScriptStringRunOnInit" : "false",
                 "BTTTouchBarItemIconHeight" : 22,
                 "BTTTouchBarItemIconWidth" : 22,
                 "BTTTouchBarItemPadding" : 0,
+                "BTTTouchBarItemPlacement" : 0,
+                "BTTTouchBarButtonCornerRadius" : 6,
                 "BTTTouchBarFreeSpaceAfterButton" : "5.000000",
                 "BTTTouchBarButtonColor" : "63.000000, 249.000000, 105.000000, 255.000000",
                 "BTTTouchBarAlwaysShowButton" : "0",
-                "BTTTouchBarAppleScriptString":"from tickerbar import *\nprint(percentPrintout('{}'))".format(symbol),
+                "BTTTouchBarShellScriptString":"from tickerbar import *\nprint(percentPrintout('{}'))".format(symbol),
                 "BTTTouchBarColorRegex" : "[-]+",
                 "BTTTouchBarAlternateBackgroundColor" : "255.000000, 16.000000, 30.000000, 255.000000",
                 "BTTTouchBarScriptUpdateInterval" : 5,

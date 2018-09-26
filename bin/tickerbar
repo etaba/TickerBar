@@ -2,28 +2,46 @@
 import sys
 from tickerbar import *
 
-if sys.argv[1] == "add":
-    assets = zip(sys.argv[2::2],sys.argv[3::2])
-    for asset in assets:
-        addPosition(*asset)
+USAGE = "USAGE: \n \
+          `add GOOG 45 FB 23 ...` : add 45 shares of GOOG and 23 shares of FB to portfolio (will overwrite existing values)\n \
+           `remove GOOG` : remove GOOG from portfolio\n \
+           `remove all` : wipe out portfolio entirely\n \
+           `ticker GOOG` : show price change of GOOG\n \
+           `daily` : show daily portfolio change\n \
+           'portfolio' : print portfolio contents\n \
+           `btt` : output portfolio configuration for BetterTouchTool into current directory as 'bttStockConfig.json'"
 
-elif sys.argv[1] == "remove":
-    if sys.argv[2] == "all":
-        clearData()
+if len(sys.argv) > 1:
+    if sys.argv[1] == "add":
+        assets = zip(sys.argv[2::2],sys.argv[3::2])
+        for asset in assets:
+            addPosition(*asset)
+
+    elif sys.argv[1] == "remove":
+        if sys.argv[2] == "all":
+            clearData()
+        else:
+            print(sys.argv[2])
+            removePosition(sys.argv[2])
+
+    elif sys.argv[1] == "ticker":
+        symbol = sys.argv[2]
+        print(percentPrintout(symbol))
+
+    elif sys.argv[1] == "daily":
+        print(dailyGainPrintout())
+
+    elif sys.argv[1] == "testCache":
+        print(cachedTotal())
+
+    elif sys.argv[1] == "btt":
+        outputForBTT()
+
+    elif sys.argv[1] == "portfolio":
+        printPositions()
     else:
-        print(sys.argv[2])
-        removePosition(sys.argv[2])
+        print(USAGE)
 
-elif sys.argv[1] == "ticker":
-    symbol = sys.argv[2]
-    print(percentPrintout(symbol))
-
-elif sys.argv[1] == "daily":
-    print(dailyGainPrintout())
-
-elif sys.argv[1] == "testCache":
-    print(cachedTotal())
-
-elif sys.argv[1] == "btt":
-    outputForBTT()
+else:
+    print(USAGE)
 
