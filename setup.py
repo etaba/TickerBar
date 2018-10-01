@@ -7,7 +7,7 @@ def readme():
 setup(
   name = 'tickerbar',
   packages = ['tickerbar'],
-  version = '0.8',
+  version = '0.9',
   description = 'Stock quotes on the mac touch bar',
   author = 'Eric Taba',
   author_email = 'eptaba@gmail.com',

@@ -1,10 +1,13 @@
-#!/usr/local/bin/python
-import json, collections, os, sys, fcntl, time
+#!/usr/local/bin/python3
+import json, collections, os, sys, fcntl, time, ssl
 from pinance import Pinance
 from functools import partial
 from datetime import datetime, timedelta
 from multiprocessing.dummy import Pool, Lock
 
+if (not os.environ.get('PYTHONHTTPSVERIFY', '') and
+    getattr(ssl, '_create_unverified_context', None)): 
+    ssl._create_default_https_context = ssl._create_unverified_context
 
 fullPath = os.path.dirname(os.path.realpath(__file__))
 JSON_CACHE = fullPath+"/quotes.json"
@@ -36,7 +39,6 @@ def clearData():
         config.write('{}')
     with open(JSON_CACHE,'w') as cache:
         cache.write('{}')
-
 
 def printPositions():
     with open(CONFIG,'r') as config:
@@ -94,8 +96,8 @@ def liveQuote(symbol, lock=None):
 def cachedQuote(symbol):
     try:
         with open(JSON_CACHE) as jsonCache:
-            cachedQuotes = collections.defaultdict(lambda: {"lastPrice":0,"change":0},json.load(jsonCache))
-            return cachedQuotes[symbol]
+            cachedQuotes = json.load(jsonCache)
+            return cachedQuotes.get(symbol,{"lastPrice":0,"change":0,"percentChange":0})
     except Exception as e:
         return {"lastPrice":0,"change":0,"percentChange":0}
 

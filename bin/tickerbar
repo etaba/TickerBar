@@ -13,9 +13,12 @@ USAGE = "USAGE: \n \
 
 if len(sys.argv) > 1:
     if sys.argv[1] == "add":
-        assets = zip(sys.argv[2::2],sys.argv[3::2])
-        for asset in assets:
-            addPosition(*asset)
+        if len(sys.argv) < 3:
+            print(f"You must specify the number of shares of {sys.argv[1]} you want to track.")
+        else:
+            assets = zip(sys.argv[2::2],sys.argv[3::2])
+            for asset in assets:
+                addPosition(*asset)
 
     elif sys.argv[1] == "remove":
         if sys.argv[2] == "all":
